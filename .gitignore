@@ -3,8 +3,9 @@
 *.xcodeproj
 .swiftpm/
 
-# Built app bundle (produced by build.sh)
+# Built app bundle / distributable (produced by build.sh / package.sh)
 Recast.app/
+Recast.zip
 
 # Claude Code local settings
 .claude/settings.local.json
