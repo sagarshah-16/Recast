@@ -4,14 +4,40 @@ A macOS menu bar app that rewrites whatever you're typing — in any app — wit
 
 Press a global shortcut (default **⌘⇧R**) while typing anywhere. Recast grabs your text (the selection if you have one, otherwise the whole field), rewrites it with Claude, applies the first suggestion instantly, and shows a small popup with your original plus all variants. Click a variant to swap, **Esc** to revert. Everything is saved to a local, searchable history.
 
-## Build
+## Download
+
+Grab the latest `Recast.zip` from the
+[**Releases**](https://github.com/sagarshah-16/Recast/releases) page, unzip it,
+and drag **Recast.app** into your **Applications** folder. It's a universal
+build that runs on both Apple Silicon and Intel Macs (macOS 14+).
+
+> **One-time step on first launch.** The app isn't notarized by Apple (that
+> requires a paid Apple Developer account), so macOS Gatekeeper will block it
+> the first time. To open it, either:
+>
+> - **Right-click** Recast.app → **Open** → **Open** in the dialog, *or*
+> - run this once in Terminal:
+>   ```sh
+>   xattr -dr com.apple.quarantine /Applications/Recast.app
+>   ```
+>
+> After that it launches normally. The app is open source — you can read every
+> line here or build it yourself (below) if you'd rather not trust the binary.
+
+## Build from source
 
 Requires macOS 14+ and the Xcode Command Line Tools (`swift` on PATH).
 
 ```sh
-./build.sh                 # builds release → Recast.app
+./build.sh                 # builds release for your Mac → Recast.app
 ditto Recast.app /Applications/Recast.app
 open /Applications/Recast.app
+```
+
+To produce the universal, zipped build that ships on Releases:
+
+```sh
+./package.sh               # universal Recast.app + Recast.zip
 ```
 
 ## First-run setup
