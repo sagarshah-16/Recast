@@ -4,29 +4,59 @@ A macOS menu bar app that rewrites whatever you're typing — in any app — wit
 
 Press a global shortcut (default **⌘⇧R**) while typing anywhere. Recast grabs your text (the selection if you have one, otherwise the whole field), rewrites it with Claude, applies the first suggestion instantly, and shows a small popup with your original plus all variants. Click a variant to swap, **Esc** to revert. Everything is saved to a local, searchable history.
 
-## Download
+## Install & set up
 
-Grab the latest `Recast.zip` from the
-[**Releases**](https://github.com/sagarshah-16/Recast/releases) page, unzip it,
-and drag **Recast.app** into your **Applications** folder. It's a universal
-build that runs on both Apple Silicon and Intel Macs (macOS 14+).
+**Requirements:** a Mac running macOS 14 (Sonoma) or later — Apple Silicon or
+Intel — and an active [claude.ai](https://claude.ai) subscription.
 
-> **One-time step on first launch.** The app isn't notarized by Apple (that
-> requires a paid Apple Developer account), so macOS Gatekeeper will block it
-> the first time. To open it, either:
->
-> - **Right-click** Recast.app → **Open** → **Open** in the dialog, *or*
-> - run this once in Terminal:
->   ```sh
->   xattr -dr com.apple.quarantine /Applications/Recast.app
->   ```
->
-> After that it launches normally. The app is open source — you can read every
-> line here or build it yourself (below) if you'd rather not trust the binary.
+### 1. Download
+
+Go to the [**Releases**](https://github.com/sagarshah-16/Recast/releases/latest)
+page and download **`Recast.zip`**. Double-click it to unzip, then drag
+**Recast.app** into your **Applications** folder.
+
+### 2. Open it the first time
+
+Recast is open source but isn't notarized by Apple (that needs a paid Apple
+Developer account), so macOS blocks it on the first launch with a *"cannot be
+opened because the developer cannot be verified"* message. This is expected —
+you only have to get past it once:
+
+- **Right-click** (or Control-click) **Recast.app** → **Open** → click **Open**
+  in the dialog.
+
+If macOS still won't open it, run this once in **Terminal**, then try again:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/Recast.app
+```
+
+After this first time, Recast opens normally like any other app.
+
+### 3. Grant Accessibility permission
+
+On launch, Recast adds a **wand icon** to your menu bar (it has no Dock icon or
+window) and asks for **Accessibility** access. Click **Open System Settings**,
+then turn **Recast** on under **Privacy & Security → Accessibility**. This lets
+Recast read and replace the text you're editing — it's required for the app to
+work.
+
+### 4. Connect your Claude account
+
+Click the **wand icon** in the menu bar → **Connect with Claude…**. Your browser
+opens to claude.ai — sign in and approve. Recast stores the login token securely
+in your macOS Keychain; nothing is shared anywhere else.
+
+### 5. Use it
+
+Type anywhere — Mail, Slack, Notes, a browser — and press **⌘⇧R**. Recast
+rewrites your text instantly and shows a popup with the alternatives. Click a
+variant to swap it in, or press **Esc** to revert to your original.
 
 ## Build from source
 
-Requires macOS 14+ and the Xcode Command Line Tools (`swift` on PATH).
+Prefer to build it yourself? You need macOS 14+ and the Xcode Command Line Tools
+(`xcode-select --install` if `swift` isn't already on your PATH).
 
 ```sh
 ./build.sh                 # builds release for your Mac → Recast.app
@@ -34,22 +64,13 @@ ditto Recast.app /Applications/Recast.app
 open /Applications/Recast.app
 ```
 
-To produce the universal, zipped build that ships on Releases:
+`build.sh` signs the app with a local "Recast Dev" certificate when present so
+the Accessibility grant survives rebuilds; otherwise it ad-hoc signs. To produce
+the universal, zipped build that ships on Releases:
 
 ```sh
 ./package.sh               # universal Recast.app + Recast.zip
 ```
-
-## First-run setup
-
-1. **Accessibility permission** — macOS prompts on first launch. Grant it in
-   System Settings → Privacy & Security → Accessibility. Needed to read and
-   replace the text you're editing. The build is signed with a local
-   "Recast Dev" certificate so the grant survives rebuilds.
-2. **Connect with Claude** — click the wand icon in the menu bar →
-   "Connect with Claude…". Your browser opens claude.ai; approve, and the
-   tokens are stored in your Keychain.
-3. Type anywhere and press **⌘⇧R**.
 
 ## Settings
 
