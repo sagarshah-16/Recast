@@ -28,7 +28,10 @@ final class TextCapture {
 
     // MARK: - Capture
 
-    func capture() async throws -> CapturedText {
+    /// - Parameter requireSelection: when true, only an actual selection
+    ///   counts — the whole-field fallback is skipped. Used by the reply flow,
+    ///   which reads someone else's message rather than the user's draft.
+    func capture(requireSelection: Bool = false) async throws -> CapturedText {
         guard !IsSecureEventInputEnabled() else { throw RecastError.secureInput }
         guard Self.hasAccessibilityPermission(promptIfNeeded: true) else {
             Log.write("capture: accessibility NOT granted")
@@ -38,14 +41,14 @@ final class TextCapture {
         let appName = NSWorkspace.shared.frontmostApplication?.localizedName ?? "Unknown"
         Log.write("capture: frontmost app = \(appName)")
 
-        if let result = captureViaAX(appName: appName) {
+        if let result = captureViaAX(appName: appName, requireSelection: requireSelection) {
             return result
         }
         Log.write("capture: AX path unavailable, trying clipboard fallback")
-        return try await captureViaClipboard(appName: appName)
+        return try await captureViaClipboard(appName: appName, requireSelection: requireSelection)
     }
 
-    private func captureViaAX(appName: String) -> CapturedText? {
+    private func captureViaAX(appName: String, requireSelection: Bool) -> CapturedText? {
         let systemWide = AXUIElementCreateSystemWide()
         var focusedRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(systemWide, kAXFocusedUIElementAttribute as CFString, &focusedRef) == .success,
@@ -64,6 +67,8 @@ final class TextCapture {
             return CapturedText(text: selected, mode: .selection, usedAX: true, appName: appName)
         }
 
+        guard !requireSelection else { return nil }
+
         var valueRef: CFTypeRef?
         guard AXUIElementCopyAttributeValue(element, kAXValueAttribute as CFString, &valueRef) == .success,
               let value = valueRef as? String,
@@ -77,7 +82,7 @@ final class TextCapture {
         return CapturedText(text: value, mode: .wholeField, usedAX: true, appName: appName)
     }
 
-    private func captureViaClipboard(appName: String) async throws -> CapturedText {
+    private func captureViaClipboard(appName: String, requireSelection: Bool) async throws -> CapturedText {
         let pasteboard = NSPasteboard.general
         let savedItems = Self.snapshotPasteboard(pasteboard)
         defer {
@@ -98,6 +103,8 @@ final class TextCapture {
             lastTarget = .clipboard(mode: .selection)
             return CapturedText(text: text, mode: .selection, usedAX: false, appName: appName)
         }
+
+        if requireSelection { throw RecastError.noSelection }
 
         // No selection — select the whole field and copy.
         KeySynth.selectAll()

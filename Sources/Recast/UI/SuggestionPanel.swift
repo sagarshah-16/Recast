@@ -33,6 +33,21 @@ final class PanelModel: ObservableObject {
     }
 }
 
+/// Observable state for the reply-suggestions popup. All three replies arrive
+/// together from a single request.
+@MainActor
+final class ReplyPanelModel: ObservableObject {
+    @Published var message: String
+    @Published var options: [ReplyOption] = []
+    @Published var failed = false
+    /// Set once the user picks a reply — the card shows "Copied" briefly.
+    @Published var copiedID: UUID?
+
+    init(message: String) {
+        self.message = message
+    }
+}
+
 /// Floating, non-activating panel shown near the cursor. Non-activating means
 /// focus stays in the app you're typing in.
 @MainActor
@@ -70,6 +85,34 @@ final class SuggestionPanelController {
         keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { event in
             if event.keyCode == 53 { // Esc
                 onRevert()
+            }
+        }
+    }
+
+    func showReplies(
+        model: ReplyPanelModel,
+        onPick: @escaping (ReplyOption) -> Void,
+        onDismiss: @escaping () -> Void
+    ) {
+        self.onDismiss = onDismiss
+        let view = RepliesView(
+            model: model,
+            onPick: onPick,
+            onClose: { [weak self] in self?.close() }
+        )
+        present(content: AnyView(view), near: NSEvent.mouseLocation)
+
+        resizeCancellable = model.objectWillChange
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                DispatchQueue.main.async { self?.resizeToFit() }
+            }
+
+        // Esc closes — nothing was changed in the user's app, so there is
+        // nothing to revert.
+        keyMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            if event.keyCode == 53 { // Esc
+                self?.close()
             }
         }
     }
@@ -264,6 +307,109 @@ private struct SuggestionsView: View {
             .background(
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(isSelected ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: 1)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct RepliesView: View {
+    @ObservedObject var model: ReplyPanelModel
+    let onPick: (ReplyOption) -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            VStack(alignment: .leading, spacing: 4) {
+                Label("Replying to", systemImage: "bubble.left")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Text(model.message)
+                    .font(.callout)
+                    .lineLimit(3)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(8)
+                    .background(.quaternary.opacity(0.5), in: RoundedRectangle(cornerRadius: 6))
+            }
+
+            if model.failed {
+                HStack(spacing: 6) {
+                    Image(systemName: "xmark.circle")
+                        .foregroundStyle(.secondary)
+                    Text("Couldn't write any replies — try again.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(8)
+            } else if model.options.isEmpty {
+                ForEach(0..<ReplyService.optionCount, id: \.self) { _ in
+                    HStack(spacing: 8) {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Writing a reply…")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                    )
+                }
+            } else {
+                ForEach(model.options) { option in
+                    replyButton(option)
+                }
+            }
+
+            HStack {
+                Text("Click a reply to copy it")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Close", action: onClose)
+                    .keyboardShortcut(.defaultAction)
+                    .controlSize(.small)
+            }
+        }
+        .padding(14)
+        .frame(width: 400)
+    }
+
+    @ViewBuilder
+    private func replyButton(_ option: ReplyOption) -> some View {
+        let isCopied = option.id == model.copiedID
+        Button {
+            onPick(option)
+        } label: {
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text(option.label)
+                        .font(.caption.weight(.semibold))
+                        .foregroundStyle(isCopied ? Color.accentColor : .secondary)
+                    Spacer()
+                    if isCopied {
+                        Label("Copied", systemImage: "checkmark.circle.fill")
+                            .font(.caption)
+                            .foregroundStyle(Color.accentColor)
+                    } else {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                Text(option.text)
+                    .font(.callout)
+                    .lineLimit(6)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(8)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isCopied ? Color.accentColor : Color.secondary.opacity(0.25), lineWidth: 1)
             )
             .contentShape(Rectangle())
         }

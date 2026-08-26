@@ -16,6 +16,7 @@ private struct GeneralSettingsView: View {
     @ObservedObject var auth = ClaudeAuth.shared
     @ObservedObject var hotkeys = HotkeyManager.shared
     @AppStorage("rewriteModel") private var model = "claude-haiku-4-5"
+    @AppStorage("replyTone") private var replyTone = ""
 
     var body: some View {
         Form {
@@ -28,6 +29,18 @@ private struct GeneralSettingsView: View {
                 Text("Press this anywhere to rewrite the text you're typing and see all suggestions. Each style can also get its own quick-apply shortcut in the Rewrite styles tab.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+
+                LabeledContent("Suggest replies shortcut:") {
+                    ShortcutField(shortcut: hotkeys.replyShortcut, allowsClear: true) { newShortcut in
+                        HotkeyManager.shared.updateReply(newShortcut)
+                    }
+                }
+                Text("Select a message anywhere and press this to get three ways to reply. Pick one and it's copied to your clipboard — your text is never changed.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                TextField("How your replies should sound:", text: $replyTone, prompt: Text("Optional — e.g. friendly but brief, no emoji"), axis: .vertical)
+                    .lineLimit(1...3)
             }
 
             Section("Model") {

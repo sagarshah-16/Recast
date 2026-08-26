@@ -13,6 +13,13 @@ struct Shortcut: Codable, Equatable {
         display: "⌘⇧R"
     )
 
+    /// Default shortcut for the reply-suggestions flow.
+    static let defaultReply = Shortcut(
+        keyCode: UInt32(kVK_ANSI_E),
+        carbonModifiers: UInt32(cmdKey | shiftKey),
+        display: "⌘⇧E"
+    )
+
     static func from(event: NSEvent) -> Shortcut? {
         let flags = event.modifierFlags.intersection([.command, .option, .control, .shift])
         guard !flags.isEmpty else { return nil }
@@ -33,14 +40,18 @@ struct Shortcut: Codable, Equatable {
     }
 }
 
-/// Registers system-wide hotkeys via Carbon: one main shortcut (popup flow)
-/// plus one optional shortcut per rewrite style (silent quick-apply).
+/// Registers system-wide hotkeys via Carbon: the main shortcut (popup flow),
+/// the reply-suggestions shortcut, plus one optional shortcut per rewrite
+/// style (silent quick-apply).
 @MainActor
 final class HotkeyManager: ObservableObject {
     static let shared = HotkeyManager()
     private static let defaultsKey = "rewriteShortcut"
+    private static let replyDefaultsKey = "replyShortcut"
 
     @Published private(set) var shortcut: Shortcut
+    /// nil means the reply flow has no shortcut — it still works from the menu.
+    @Published private(set) var replyShortcut: Shortcut?
 
     private var hotKeyRefs: [EventHotKeyRef] = []
     private var actions: [UInt32: () -> Void] = [:]
@@ -53,6 +64,11 @@ final class HotkeyManager: ObservableObject {
         } else {
             shortcut = .default
         }
+        if let data = UserDefaults.standard.data(forKey: Self.replyDefaultsKey) {
+            replyShortcut = try? JSONDecoder().decode(Shortcut.self, from: data)
+        } else {
+            replyShortcut = .defaultReply
+        }
         installEventHandler()
     }
 
@@ -61,6 +77,19 @@ final class HotkeyManager: ObservableObject {
         if let data = try? JSONEncoder().encode(newShortcut) {
             UserDefaults.standard.set(data, forKey: Self.defaultsKey)
         }
+        reload()
+    }
+
+    /// Passing nil clears the shortcut; the menu item still triggers the flow.
+    func updateReply(_ newShortcut: Shortcut?) {
+        replyShortcut = newShortcut
+        // A cleared shortcut is stored as empty data — an absent key means
+        // "never set", which falls back to the default.
+        var data = Data()
+        if let newShortcut, let encoded = try? JSONEncoder().encode(newShortcut) {
+            data = encoded
+        }
+        UserDefaults.standard.set(data, forKey: Self.replyDefaultsKey)
         reload()
     }
 
@@ -74,6 +103,12 @@ final class HotkeyManager: ObservableObject {
         var id: UInt32 = 1
         register(shortcut, id: id) {
             RewritePipeline.shared.run()
+        }
+        if let replyShortcut {
+            id += 1
+            register(replyShortcut, id: id) {
+                RewritePipeline.shared.suggestReplies()
+            }
         }
         for category in CategoriesStore.shared.categories {
             guard let categoryShortcut = category.shortcut else { continue }

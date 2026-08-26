@@ -51,8 +51,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// recast://signin | recast://rewrite — lets the sign-in and
-    /// rewrite flows be triggered from scripts and the command line.
+    /// recast://signin | recast://rewrite | recast://replies — lets the
+    /// sign-in, rewrite, and reply flows be triggered from scripts and the
+    /// command line.
     func application(_ application: NSApplication, open urls: [URL]) {
         for url in urls {
             switch url.host {
@@ -61,7 +62,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                     do { try await ClaudeAuth.shared.signIn() }
                     catch { RewritePipeline.shared.lastError = error.localizedDescription }
                 }
-            case "rewrite":
+            case "rewrite", "replies":
+                let wantsReplies = url.host == "replies"
                 Task { @MainActor in
                     // Opening the URL focuses us; give focus back to the app
                     // the user was typing in before capturing.
@@ -70,7 +72,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                         previous.activate()
                         try? await Task.sleep(for: .milliseconds(400))
                     }
-                    RewritePipeline.shared.run()
+                    if wantsReplies {
+                        RewritePipeline.shared.suggestReplies()
+                    } else {
+                        RewritePipeline.shared.run()
+                    }
                 }
             default:
                 break

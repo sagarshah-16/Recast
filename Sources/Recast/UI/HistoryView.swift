@@ -17,9 +17,9 @@ struct HistoryView: View {
         Group {
             if store.entries.isEmpty {
                 ContentUnavailableView(
-                    "No rewrites yet",
+                    "Nothing yet",
                     systemImage: "clock.arrow.circlepath",
-                    description: Text("Press your shortcut while typing anywhere to rewrite text. Everything you rewrite shows up here.")
+                    description: Text("Press your shortcut while typing anywhere to rewrite text, or with a message selected to get reply suggestions. Everything shows up here.")
                 )
             } else {
                 List(filtered) { entry in
@@ -28,7 +28,7 @@ struct HistoryView: View {
                 .listStyle(.inset)
             }
         }
-        .searchable(text: $search, prompt: "Search rewrites")
+        .searchable(text: $search, prompt: "Search rewrites and replies")
         .toolbar {
             Button("Clear history", role: .destructive) {
                 store.clear()
@@ -52,16 +52,21 @@ private struct HistoryRow: View {
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
                     .background(.quaternary, in: Capsule())
+                if entry.kind == .reply {
+                    Label("Reply", systemImage: "bubble.left")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
                 Text(entry.date, style: .relative)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
                 if let picked = entry.pickedCategory {
-                    Label(picked, systemImage: "checkmark")
+                    Label(picked, systemImage: entry.kind == .reply ? "doc.on.doc" : "checkmark")
                         .font(.caption)
                         .foregroundStyle(.green)
                 }
-                Button(expanded ? "Hide" : "Show variants") {
+                Button(expanded ? "Hide" : (entry.kind == .reply ? "Show replies" : "Show variants")) {
                     expanded.toggle()
                 }
                 .buttonStyle(.link)

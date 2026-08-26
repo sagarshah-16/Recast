@@ -7,12 +7,24 @@ struct MenuView: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.openSettings) private var openSettings
 
+    private var replyTitle: String {
+        if let shortcut = HotkeyManager.shared.replyShortcut {
+            return "Suggest replies to selection (\(shortcut.display))"
+        }
+        return "Suggest replies to selection"
+    }
+
     var body: some View {
         if auth.isConnected {
             Toggle("Enabled", isOn: $appState.isEnabled)
 
             Button("Rewrite current text (\(HotkeyManager.shared.shortcut.display))") {
                 RewritePipeline.shared.run()
+            }
+            .disabled(!appState.isEnabled)
+
+            Button(replyTitle) {
+                RewritePipeline.shared.suggestReplies()
             }
             .disabled(!appState.isEnabled)
 

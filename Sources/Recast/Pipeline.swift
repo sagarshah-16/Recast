@@ -5,6 +5,10 @@ import AppKit
 ///  - Popup (main shortcut): all styles requested in parallel; the first
 ///    style is applied the moment it arrives, the popup fills in the rest.
 ///  - Quick (per-style shortcut): one style, applied silently — no popup.
+///
+/// Also runs the reply flow (its own shortcut): three ways to answer the
+/// selected message, copied to the clipboard when picked. That flow never
+/// touches the text on screen.
 @MainActor
 final class RewritePipeline: ObservableObject {
     static let shared = RewritePipeline()
@@ -49,6 +53,85 @@ final class RewritePipeline: ObservableObject {
         } catch {
             Log.write("pipeline: ERROR \(error.localizedDescription)")
             capture.finish()
+            showError(error.localizedDescription)
+        }
+    }
+
+    // MARK: - Reply suggestions
+
+    func suggestReplies() {
+        guard !isRunning else { return }
+        Task { await runReplies() }
+    }
+
+    private func runReplies() async {
+        Log.write("pipeline: replies triggered (enabled=\(AppState.shared.isEnabled), connected=\(ClaudeAuth.shared.isConnected))")
+        guard AppState.shared.isEnabled else { return }
+        guard ClaudeAuth.shared.isConnected else {
+            showError(RecastError.notConnected.localizedDescription)
+            return
+        }
+
+        isRunning = true
+        lastError = nil
+        defer { isRunning = false }
+
+        let captured: CapturedText
+        do {
+            captured = try await capture.capture(requireSelection: true)
+        } catch {
+            Log.write("pipeline: replies ERROR \(error.localizedDescription)")
+            capture.finish()
+            showError(error.localizedDescription)
+            return
+        }
+        // Replies are never written back into the field — drop the target so
+        // nothing can be applied by accident.
+        capture.finish()
+        Log.write("pipeline: replying to \(captured.text.count) chars from \(captured.appName)")
+
+        let panelModel = ReplyPanelModel(message: captured.text)
+        var historyID: UUID?
+
+        SuggestionPanelController.shared.showReplies(
+            model: panelModel,
+            onPick: { option in
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(option.text, forType: .string)
+                panelModel.copiedID = option.id
+                if let historyID {
+                    HistoryStore.shared.updatePick(id: historyID, category: option.label)
+                }
+                Log.write("pipeline: copied reply '\(option.label)'")
+                Task {
+                    try? await Task.sleep(for: .milliseconds(700))
+                    SuggestionPanelController.shared.close()
+                }
+            },
+            onDismiss: {}
+        )
+
+        let model = UserDefaults.standard.string(forKey: "rewriteModel") ?? "claude-haiku-4-5"
+        let tone = UserDefaults.standard.string(forKey: "replyTone") ?? ""
+        do {
+            let options = try await ReplyService.suggestReplies(to: captured.text, tone: tone, model: model)
+            panelModel.options = options
+            Log.write("pipeline: \(options.count) replies ready")
+
+            let entry = HistoryEntry(
+                kind: .reply,
+                date: Date(),
+                appName: captured.appName,
+                original: captured.text,
+                variants: options.map { RewriteVariant(category: $0.label, text: $0.text) },
+                pickedCategory: nil
+            )
+            HistoryStore.shared.add(entry)
+            historyID = entry.id
+        } catch {
+            Log.write("pipeline: replies ERROR \(error.localizedDescription)")
+            panelModel.failed = true
+            SuggestionPanelController.shared.close()
             showError(error.localizedDescription)
         }
     }
