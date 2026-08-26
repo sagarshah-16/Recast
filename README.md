@@ -1,6 +1,6 @@
 # Recast
 
-A macOS menu bar app that rewrites whatever you're typing — in any app — with Claude, using your claude.ai subscription via OAuth.
+A macOS menu bar app that rewrites whatever you're typing — and suggests ways to reply to what you've been sent — in any app, with Claude, using your claude.ai subscription via OAuth.
 
 Press a global shortcut (default **⌘⇧R**) while typing anywhere. Recast grabs your text (the selection if you have one, otherwise the whole field), rewrites it with Claude, applies the first suggestion instantly, and shows a small popup with your original plus all variants. Click a variant to swap, **Esc** to revert. Everything is saved to a local, searchable history.
 
@@ -40,8 +40,8 @@ After this first time, Recast opens normally like any other app.
 On launch, Recast adds a **wand icon** to your menu bar (it has no Dock icon or
 window) and asks for **Accessibility** access. Click **Open System Settings**,
 then turn **Recast** on under **Privacy & Security → Accessibility**. This lets
-Recast read and replace the text you're editing — it's required for the app to
-work.
+Recast read and replace the text you're editing, and read the message you've
+selected when you ask for replies — it's required for the app to work.
 
 ### 4. Connect your Claude account
 
@@ -86,7 +86,9 @@ the universal, zipped build that ships on Releases:
 
 - **General** — change both shortcuts (rewrite and reply suggestions), tell
   Recast how your replies should sound, pick the model (Haiku 4.5 default for
-  speed), manage the Claude connection and permissions.
+  speed), manage the Claude connection and permissions. The reply shortcut can
+  be cleared with the **✕** if you'd rather not spend a hotkey on it — the menu
+  item still works.
 - **Rewrite styles** — fully customizable categories. Each row is a name +
   prompt; the first style in the list is the one auto-applied. Add, edit,
   reorder, or delete styles.
@@ -118,6 +120,12 @@ the universal, zipped build that ships on Releases:
   `Sources/Recast/Rewrite/ReplyService.swift`.
 - In clipboard-fallback apps, swapping variants uses undo (⌘Z) + paste, so
   the target app must support undo.
+- Reply suggestions need a real selection. Unlike the rewrite shortcut, they
+  won't fall back to reading the whole field — that would grab your own draft
+  instead of the message you're answering.
+- Picking a reply replaces your clipboard, on purpose, so you can paste it.
+  (The rewrite flow is the opposite: it saves and restores whatever you had
+  copied.)
 - Tokens live in the macOS Keychain; nothing is sent anywhere except
   `claude.ai` / `console.anthropic.com` / `api.anthropic.com`.
 
